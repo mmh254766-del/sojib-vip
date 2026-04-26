@@ -1,0 +1,123 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account information including wallet balance and role.",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "walletBalance": { "type": "number", "description": "Current funds in BDT" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "totalSpent": { "type": "number" },
+        "totalOrders": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastLogin": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "walletBalance", "role"]
+    },
+    "Product": {
+      "title": "Marketplace Product",
+      "description": "API, Tools, or Subscriptions for sale.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "stock": { "type": "string", "enum": ["available", "out_of_stock"] },
+        "category": { "type": "string", "enum": ["API", "Tools", "Subscription"] },
+        "discount": { "type": "number", "description": "Percentage discount" },
+        "whatsappHint": { "type": "string", "description": "Admin reminder for WhatsApp info" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "price", "stock", "category"]
+    },
+    "Order": {
+      "title": "Customer Order",
+      "description": "Recording a product purchase.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "productId": { "type": "string" },
+        "productTitle": { "type": "string" },
+        "price": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "processing", "completed", "cancelled"] },
+        "whatsappNumber": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "productId", "price", "status", "whatsappNumber"]
+    },
+    "AddFundRequest": {
+      "title": "Wallet Deposit",
+      "description": "User request to add funds via bKash/Nagad.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "amount": { "type": "number" },
+        "transactionId": { "type": "string" },
+        "method": { "type": "string", "enum": ["bkash", "nagad"] },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "amount", "transactionId", "method", "status"]
+    },
+    "Settings": {
+      "title": "Site Settings",
+      "description": "Global configuration for the marketplace.",
+      "type": "object",
+      "properties": {
+        "siteName": { "type": "string" },
+        "welcomeBanner": { "type": "string" },
+        "bkashNumber": { "type": "string" },
+        "nagadNumber": { "type": "string" },
+        "minDeposit": { "type": "number" },
+        "maxDeposit": { "type": "number" },
+        "isMaintenance": { "type": "boolean" },
+        "supportTelegram": { "type": "string" },
+        "popupAnnouncement": { "type": "string" }
+      }
+    },
+    "Notification": {
+      "title": "System Notification",
+      "description": "Messages for users.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Target user ID or 'all'" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["info", "alert"] },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Main user records."
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Marketplace items."
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Purchase records."
+    },
+    "/addFundRequests/{requestId}": {
+      "schema": "AddFundRequest",
+      "description": "Wallet deposit history."
+    },
+    "/settings/global": {
+      "schema": "Settings",
+      "description": "Global application configuration."
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "In-app alerts."
+    }
+  }
+}

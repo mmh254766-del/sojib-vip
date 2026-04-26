@@ -1,0 +1,115 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function getUserData() { 
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) 
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data 
+        : null; 
+    }
+    function isAdmin() { 
+      return isSignedIn() && (
+        (getUserData() != null && getUserData().role == 'admin') || 
+        request.auth.token.email == 'carder1.0.00.1.987@gmail.com'
+      ); 
+    }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // --- User Validation ---
+    function isValidUser(data) {
+      return data.email is string && data.email.size() > 0 
+        && data.walletBalance is number 
+        && data.role in ['user', 'admin']
+        && (data.keys().hasAll(['email', 'walletBalance', 'role']))
+        && (data.keys().size() >= 3);
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) 
+        && incoming().walletBalance == 0 
+        && (incoming().role == 'user' || (incoming().role == 'admin' && request.auth.token.email == 'carder1.0.00.1.987@gmail.com'))
+        && isValidUser(incoming());
+      allow update: if (isAdmin()) 
+        || (isOwner(userId) 
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'lastLogin'])
+            && incoming().role == existing().role
+            && incoming().walletBalance == existing().walletBalance
+        );
+      allow delete: if isAdmin();
+    }
+
+    // --- Product Validation ---
+    function isValidProduct(data) {
+      return data.title is string && data.title.size() > 0
+        && data.price is number && data.price >= 0
+        && data.stock in ['available', 'out_of_stock']
+        && data.category in ['API', 'Tools', 'Subscription']
+        && data.keys().hasAll(['title', 'price', 'stock', 'category']);
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() && isValidProduct(incoming());
+    }
+
+    // --- Order Validation ---
+    function isValidOrder(data) {
+      return data.userId == request.auth.uid 
+        && data.productId is string
+        && data.status in ['pending', 'processing', 'completed', 'cancelled']
+        && data.whatsappNumber is string
+        && data.keys().hasAll(['userId', 'productId', 'price', 'status', 'whatsappNumber']);
+    }
+
+    match /orders/{orderId} {
+      allow get: if isSignedIn() && (isOwner(existing().userId) || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidOrder(incoming()) && incoming().status == 'pending';
+      allow update: if isAdmin(); // Only admin can update order status
+      allow delete: if isAdmin();
+    }
+
+    // --- Add Fund Request Validation ---
+    function isValidFundRequest(data) {
+      return data.userId == request.auth.uid
+        && data.amount is number && data.amount > 0
+        && data.transactionId is string
+        && data.method in ['bkash', 'nagad']
+        && data.status in ['pending', 'approved', 'rejected']
+        && data.keys().hasAll(['userId', 'amount', 'transactionId', 'method', 'status']);
+    }
+
+    match /addFundRequests/{requestId} {
+      allow get: if isSignedIn() && (isOwner(existing().userId) || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidFundRequest(incoming()) && incoming().status == 'pending';
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // --- Settings ---
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // --- Notifications ---
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.userId == 'all');
+      allow create, delete: if isAdmin();
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
+    }
+  }
+}
